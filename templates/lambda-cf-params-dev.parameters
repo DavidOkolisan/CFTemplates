@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "ExampleLambdaRetentionDays",
+        "ParameterValue": "30"
+    },
+    {
+        "ParameterKey": "KMSKeyArn",
+        "ParameterValue": "some_kms_key_arn"
+    },
+    {
+        "ParameterKey": "ExampleLambdaBucket",
+        "ParameterValue": "example-lambda-bucket"
+    },
+    {
+        "ParameterKey": "ExampleLambdaVersion",
+        "ParameterValue": "1.0.0"
+    }
+]

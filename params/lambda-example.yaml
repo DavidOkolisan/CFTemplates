@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda example template'
+Parameters:
+  Env:
+    Description: Environment
+    Type: String
+  ExampleLambdaRetentionDays:
+    Description: Lambda log retention days number
+    Type: Number
+  KMSKeyArn:
+    Description: KMS key arn used for encryption
+    Type: String
+  ExampleLambdaBucket:
+    Description: Bucket name containing lambda code
+    Type: String
+  ExampleLambdaVersion:
+    Description: Lambda version
+    Type: String
+
+Resources:
+  # Cloudwatch log group where lambda logs will be stored
+  ExampleLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/example-lambda-${Env}'
+      RetentionInDays: !Ref ExampleLambdaRetentionDays
+
+  # Lambda role
+  ExampleLambdaRole:
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Prinicipal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: cloudwatch-access
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogsEvents
+                Resources:
+                  - !GetAtt ExampleLambdaLogGroup.Arn
+        - PolicyName: key-handler
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:DescribeKey
+                  - kms:CreateGrant
+                Resource: !Ref KMSKeyArn
+      RoleName:
+        !Sub 'example-lambda-role-${AWS::Region}-${Env}'
+      Tags:
+        - Key: project
+          Value: example
+        - Key: name
+          Name: !Sub 'example-lambda-role-${AWS::Region}-${Env}'
+        - Key: environment
+          Name: !Sub '${Env}'
+        - Key: stack
+          Name: !Sub '${AWS:StackName}'
+        - Key: application
+          Name: exampleApp
+
+  # Lambda resource
+  ExampleLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Sub '${ExampleLambdaBucket}'
+        S3Key: !Sub 's3_key_to_zip_containting_lambda_code/example-lambda-${ExampleLambdaVersion}.zip'
+      FunctionName: !Sub 'example-lambda-${Env}'
+      Description: Example lambda
+      Handler: 'com.organization.example.ExampleLambdaHandler:handleRequest' #or ie python_script_name.handler
+      Role: !GetAtt ExampleLambdaRole.Arn
+      Runtime: java8 # or ie python3.8
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          - ENV: !Rev Env
+      Tags:
+        - Key: project
+          Value: example
+        - Key: name
+          Name: !Sub 'example-lambda-${Env}'
+        - Key: environment
+          Name: !Sub '${Env}'
+        - Key: stack
+          Name: !Sub '${AWS:StackName}'
+        - Key: application
+          Name: exampleApp
+
+  # Example lambda cron job - event bridge
+  ExampleLambdaScheduledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'Scheduled rule for example lambda'
+      ScheduleExpression: 'cron(10 * * * ? *)'
+      State: 'ENABLED'
+      Targets:
+        - Arn: !GetAtt ExampleLambda.Arn
+          Id: TargetFunctionExample
+
+  # Permission for invoking events
+  ExampleLambdaPermissionForInvokeEvents:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExampleLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExampleLambdaScheduledRule.Arn
+
+Outputs:
+  ExampleLambdaArn:
+    Descriptions: Example lambda arn output if required by some other CF template
+    Value: !GetAtt ExampleLambda.Arn
+    Export:
+      Name: !Sub '${AWS:StackName}-ExampleLambdaArn'

@@ -1,0 +1,14 @@
+[
+    {
+        "ParameterKey": "KMSKeyId",
+        "ParameterValue": "some_kms_id"
+    },
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "SNSSubscriptionSQSEndpoint",
+        "ParameterValue": "some_sqs_arn"
+    }
+]

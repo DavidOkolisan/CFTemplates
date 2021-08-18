@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SNS SQS example'
+Parameters:
+  KMSKeyId:
+    Descriptions: KMS key id used for SQS encryption
+    Type: String
+  Env:
+    Descriptions: Environment
+    Type: String
+  SNSSubscriptionSQSEndpoint:
+    Description: SQS endpoint ARN to which messages will be sent from SNS
+    Type: String
+
+# Condition example for various purposes
+Conditions:
+  IsProdEnv: !Equals
+    - !Ref Env
+    - prod
+
+Resources:
+  # DLQ example SQS
+  ExampleSQSDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsDataKeyReusePeriodSeconds: 3600 # one hour ie
+      KmsMasterKeyId: !Ref KMSKeyId
+      MessageRetentionPeriod: 1209600 # 15 days ie
+      QueueName: !Sub 'example-sqs-dlq'
+      Tags:
+        - Key: project
+          Value: example-project
+
+  # Example SQS
+  ExampleSQS:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsDataKeyReusePeriodSeconds: 3600 # one hour ie
+      KmsMasterKeyId: !Ref KMSKeyId
+      MessageRetentionPeriod: 604800 # 7 days ie
+      QueueName: !Sub 'example-sqs'
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExampleSQSDLQ.Arn
+        maxReceiveCount: 30
+      Tags:
+        - Key: project
+          Value: example-project
+
+  # Example SNS
+  ExampleSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub 'example-sns-${Env}'
+      TopicName: !Sub 'example-sns-${Env}'
+      KMSMasterKeyId: !Ref KMSKeyId
+      Tags:
+        - Key: project
+          Value: example-project
+
+  # Policy to send msgs to sqs from SNS
+  ExampleSQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ExampleSQS
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: ExampleSQSPolicy
+        Statement:
+          - Sid: Allow-SQS-notification-from-ExampleSNS
+            Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt ExampleSNS.Arn
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Ref ExampleSNS
+
+  # SQS SNS subscription
+  ExampleSQSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref ExampleSNS
+      Endpoint: !GetAtt ExampleSQS.Arn
+
+  # Example of setting subscriptions to SNS conditionally
+  Example1SNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub 'example1-sns-${Env}'
+      TopicName: !Sub 'example1-sns-${Env}'
+      KMSMasterKeyId: !Ref KMSKeyId
+      Subscription:
+        - Fn::If:
+            - IsProdEnv
+            - Endpoint: !Ref SNSSubscriptionSQSEndpoint
+              Protocol: SQS
+            - Ref: AWS::NoValue
+      Tags:
+        - Key: project
+          Value: example-project
