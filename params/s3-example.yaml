@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 example'
+Parameters:
+  Env:
+    Descriptions: Environment
+    Type: String
+  KMSKeyArn:
+    Descriptions: Encryption key
+    Type: String
+
+Resources:
+  # S3 bucket example
+  ExampleBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: ! 'example-bucket-${Env}'
+      AccessControl: LogDeliveryWrite
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              KMSMasterKeyID: !Ref KMSKeyArn
+              SSEAlgorithm: 'aws:kms'
+      Tags:
+        - Key: project
+          Value: example-project
+
+  ExampleBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ExampleBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowOtherAccountAccess
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:s3:::example-bucket-${Env}'
+              - !Sub 'arn:aws:s3:::example-bucket-${Env}/*'
+            Principal:
+              AWS:
+                - 'arn:aws:iam::{SomeAccountID}:role/example.role.name'
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:ListBucket
+              - s3:GetObject
+              - s3:GetObjectAcl
+              - s3:GetObjectVersion
+          - Sid: RequiredSecuredTransport
+            Effect: Deny
+            Resource: !Sub 'arn:aws:s3:::example-bucket-${Env}/*'
+            Principal: '*'
+            Action:
+              - s3:*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+

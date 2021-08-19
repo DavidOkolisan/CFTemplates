@@ -1,0 +1,10 @@
+[
+    {
+        "ParameterKey": "KMSKeyArn",
+        "ParameterValue": "arn:aws:kms:{aws-region}:{account-id}:key/{key-id}"
+    },
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    }
+]
