@@ -1,0 +1,14 @@
+[
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "VPCId",
+        "ParameterValue": "some_vpc_id"
+    }
+    {
+        "ParameterKey": "SubnetOrVPCCIDR",
+        "ParameterValue": "some_vpc_cidr"
+    }
+]

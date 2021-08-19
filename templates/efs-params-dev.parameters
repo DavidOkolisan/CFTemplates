@@ -1,0 +1,18 @@
+[
+    {
+        "ParameterKey": "KMSKeyArn",
+        "ParameterValue": "arn:aws:kms:{aws-region}:{account-id}:key/{key-id}"
+    },
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "SubnetId",
+        "ParameterValue": "123456"
+    },
+    {
+        "ParameterKey": "ExampleSecurityGroup",
+        "ParameterValue": "SG-123456"
+    }
+]

@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "KMSKeyArn",
+        "ParameterValue": "arn:aws:kms:{aws-region}:{account-id}:key/{key-id}"
+    },
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "SubnetId",
+        "ParameterValue": "123456"
+    },
+    {
+        "ParameterKey": "DataPipelineEC2AMI",
+        "ParameterValue": "AMI-123456"
+    }
+    {
+        "ParameterKey": "ExampleSNSTopicArn",
+        "ParamterValue": "arn:aws:sns:{aws-region}:{account-id}:ExampleSNS"
+    }
+]

@@ -1,0 +1,298 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Data pipeline example'
+Parameters:
+  Env:
+    Descriptions: Environment
+    Type: String
+  KMSKeyArn:
+    Descriptions: KMS key arn used for encryption
+    Type: String
+  SubnetId:
+    Description: Subnet id used for Data pipeline EC2 instance
+    Type: String
+  DataPipelineEC2AMI:
+    Description: AMI used for data pipeline EC2 instance build
+    Type: String
+  ExampleSNSTopicArn:
+    Description: SNS Topic Arn used for publishing error messages
+    Type: String
+
+
+# SNS, SG can be defined as parameter or resource depending on requirements
+# since that part is already elaborated in other cf will be skipped here
+
+Resources:
+  # Default data pipeline role
+  ExampleDPDefaultRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'ExampleDPDefaultRole-${Env}'
+      Path: /
+      AsumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - datapipeline.amazonaws.com
+                - ec2.amazonaws.com
+              Action:
+                - sts:AssumeRole
+      Policies:
+        - PolicyName: example-data-pipeline-default-role
+          PolicyDocument:
+            Statement: # here many permission will be given, however should be limited according to requirement
+              - Effect: Allow
+                Action:
+                  - ec2:*
+                  - cloudwatch:*
+                  - sns:*
+                  - sqs:*
+                  - elasticmapreduce:*
+                  - rds:*
+                  - redshift:*
+                  - sdb:*
+                  - datapipeline:*
+                  - dynamodb:*
+                  - s3:*
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - iam:GetInstanceProfile
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                  - iam:PassRole
+                  - iam:ListInstanceProfiles
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ExampleDataPipelineDefaultRole-${Env}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ExampleDataPipelineResourceRole-${Env}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/ExampleDataPipelineResourceRole-${Env}'
+              - Effect: Allow
+                Action: kms:*
+                Resource:
+                  - !Sub '${KMSKeyArn}'
+    DependsOn:
+      - ExampleDPResourceRole
+
+  ExampleDPResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'ExampleDPResourceRole-${Env}'
+      Path: /
+      AsumeRolePolicyDocument:
+        Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - datapipeline.amazonaws.com
+                  - ec2.amazonaws.com
+                Action:
+                  - sts:AssumeRole
+      Policies:
+        - PolicyName: example-data-pipeline-resource-role
+          PolicyDocument:
+            Statement: # example permission, limit to requirements
+              - Effect: Allow
+                Action:
+                  - ec2:Describe*
+                  - cloudwatch:*
+                  - sns:*
+                  - sqs:*
+                  - elasticmapreduce:AddJobFlowSteps
+                  - elasticmapreduce:Describe*
+                  - elasticmapreduce:ListInstance*
+                  - elasticmapreduce:ModifyInstanceGroups
+                  - sts:DecodeAuthorizationMessage
+                  - rds:Describe*
+                  - redshift:DescribeClusters
+                  - redshift:DescribeClusterSecurityGroups
+                  - sdb:*
+                  - datapipeline:*
+                  - dynamodb:*
+                  - s3:*
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - iam:GetInstanceProfile
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                  - iam:PassRole
+                  - iam:ListInstanceProfiles
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ExampleDataPipelineDefaultRole-${Env}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ExampleDataPipelineResourceRole-${Env}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/ExampleDataPipelineResourceRole-${Env}'
+                  - !Sub 'arn:aws:dynamodb::${AWS::AccountId}:table/example-table-${Env}-*'
+              - Effect: Allow
+                Action: kms:*
+                Resource:
+                  - !Sub '${KMSKeyArn}'
+
+  # Required by DP in order to be able to create EC2 instance
+  ExampleDPResourceRoleInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      InstanceProfileName: !Sub 'ExampleDataPipelineResourceRole-${Env}'
+      Roles:
+        - !Ref ExampleDataPipelineResourceRole
+    DependsOn:
+      - ExampleDataPipelineResourceRole
+
+  # Data pipeline
+  ExamplaDataPipeline:
+    Type: AWS::DataPipeline::Pipeline
+    Properties:
+      Name: !Sub 'ExampleDataPipeline-${Env}'
+      Description: Example data pipeline resource
+      Activate: false # set to true if you want to activate it immediately after creation
+      ParameterObjects: # define parameters that will be referenced later by pipeline objects, must start with 'my' prefix
+        - Id: 'myDynamoDBReadThroughputRatio'
+          Attributes:
+            - Key: 'description'
+              StringValue: 'Dynamo database read throughput ratio'
+            - Key: 'type'
+              StringValue: 'Double'
+            - Key: 'default'
+              StringValue: '0.3'
+        - Id: 'myS3Bucket'
+          Attributes:
+            - Key: 'description'
+              StringValue: 'Example S3 bucket'
+            - Key: 'type'
+              StringValue: 'AWS::S3::ObjectKey'
+            - Key: 'default'
+              StringValue: !Sub 's3://s3-example-bucket-${Env}'
+        - Id: 'mySecondS3BucketName'
+          Attributes:
+            - Key: 'description'
+              StringValue: 'Another S3 bucket'
+            - Key: 'type'
+              StringValue: 'String'
+            - Key: 'default'
+              StringValue: !Sub 'another-s3-example-bucket-${Env}'
+        - Id: 'myEFSID' # EFS and AP will be created in another template, this shows how to use reference in dp parameter object
+          Attributes:
+            - Key: 'description'
+              StringValue: 'EFS id that might be created in same template'
+            - Key: 'type'
+              StringValue: 'String'
+            - Key: 'default'
+              StringValue: !Ref ExampleEFSID
+        - Id: myOrderId
+          Attributes:
+            - Key: 'description'
+              StringValue: 'Example time order id parsing, from scheduled start time it will take floor minus two hours, ie if scheduled time is 12:25 (2021-01-01) it will return 202101011000'
+            - Key: 'type'
+              StringValue: 'String'
+            - Key: 'default'
+              StringValue: '#{format(minusHours(@scheduledStartTime,2),"YYYYMMddHH00")}'
+      PipelineObjects:
+        - Id: 'FirstActivity'
+          Name: 'First activity'
+          Fields:
+            - Key: 'type'
+              StringValue: 'ShellCommandActivity'
+            - Key: 'runsOn'
+              RefValue: 'Ec2Instance'
+            - Key: 'command'
+              StringValue: !Sub 'aws s3 ls #{myS3Bucket}' # multiple shell scripts can be placed here
+            - Key: 'onFail'
+              RefValue: 'FailureNotify'
+        - Id: 'SecondActivity'
+          Name: 'Second activity'
+          Fields:
+            - Key: 'type'
+              StringValue: 'ShellCommandActivity'
+            - Key: 'runsOn'
+              RefValue: 'Ec2Instance'
+            - Key: 'command'
+              StringValue: !Sub 'sudo ./some_shell_script.sh #{myOrderId}'
+            - Key: 'dependsOn'
+              RefValue: 'FirstActivity'
+            - Key: 'onFail'
+              RefValue: 'FailureNotify'
+        - Id: 'DefaultSchedule' # needed only if scheduleType 'cron' is used in default object
+          Name: 'Cron schedule every hour'
+          Fields:
+            - Key: 'type'
+              StringValue: 'Schedule'
+            - Key: 'StartDateTime'
+              StringValue: '2021-01-01T05:00:00' # reference to parameter can be passed here also ie !Sub '${StartTime}'
+#           Following two lines are very useful during development, also period can be lower ie 15 minutes
+#            - Key: 'startAt'
+#              StringValue: 'FIRST_ACTIVATION_DATE_TIME'
+            - Key: 'period'
+              RefValue: '1 hour'
+        - Id: 'Default'
+          Name: 'Default'
+          Fields:
+            - Key: 'type'
+              StringValue: 'Default'
+            - Key: 'scheduleType'
+              StringValue: 'cron' # or ie 'ondemand', however for more details about schedule type check AWS data pipeline docs
+            - Key: 'failureAndRerunMode'
+              StringValue: 'CASCADE'
+            - Key: 'role'
+              StringValue: !Ref ExampleDPDefaultRole
+            - Key: 'resourceRole'
+              StringValue: !Ref ExampleDPResourceRole
+            - Key: 'pipelineLogUri'
+              RefValue: '#{myS3Bucket}/logs/'
+        - Id: 'Ec2Instance'
+          Name: 'Ec2Instance'
+          Fields:
+            - Key: 'terminateAfter'
+              StringValue: '30 minutes'
+            - Key: 'actionOnTaskFailure'
+              StringValue: 'terminate'
+            - Key: 'actionOnResourceFailure'
+              StringValue: 'retryAll'
+            - Key: 'maximumRetries'
+              StringValue: '1'
+            - Key: 'securityGroupIds'
+              StringValue: !Get ExampleSG.GroupId # Security Group creation is covered in another template, this is how it can be referenced in same template
+            - Key: 'subnetId'
+              StringValue: !Ref SubnetId
+            - Key: 'associatePublicIpAddress'
+              StringValue: 'true'
+            - Key: 'type'
+              StringValue: 'Ec2Resource'
+            - Key: 'imageId'
+              StringValue: !Ref DataPipelineEC2AMI
+            - Key: 'instanceType'
+              StringValue: 't2.small'
+            - Key: 'role'
+              StringValue: !Ref ExampleDPDefaultRole
+            - Key: 'resourceRole'
+              StringValue: !Ref ExampleDPResourceRole
+            - Key: 'onFail'
+              RefValue: 'FailureNotify'
+        - Id: 'FailureNotify'
+          Name: 'FailureNotify'
+          Fields:
+            - Key: 'type'
+              StringValue: 'SnsAlarm'
+            - Key: 'topicArn'
+              StringValue: !Ref ExampleSNSTopicArn
+            - Key: 'subject'
+              StringValue: 'Failed PipelineId: #{node.@pipelineId} Error: #{node.errorMessage}.'
+            - Key: 'message'
+              StringValue: |
+                Failed on: #{node}
+                Error: #{node.errorStackTrace}.
+      PipelineTags:
+        - Key: project
+          Value: example project
+    DependsOn:
+      - ExampleDPDefaultRole
+      - ExampleDPResourceRole
+      # - ExampleDPSG # If SG is created in same template, this line may be required
+      # - ExampleDPEFS # If EFS is created in same template, this line may be required
+
+

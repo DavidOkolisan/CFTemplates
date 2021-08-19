@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Security Group example'
+Parameters:
+  Env:
+    Descriptions: Environment
+    Type: String
+  VPCId:
+    Descriptions: VPC id
+    Type: String
+  SubnetOrVPCCIDR:
+    Descriptions: CIDR subnet or vpc
+    Type: String
+
+
+Resources:
+  ExampleSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'ExampleSG-${Env}'
+      GroupDescription: Example security group
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp' # ports set as example only
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref SubnetOrVPCCIDR
+      SecurityGroupEgress:
+        - IpProtocol: 'tcp' # ports set as example only
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref SubnetOrVPCCIDR
+        - IpProtocol: 'tcp'
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: 'tcp'
+          FromPort: 443
+          ToPort: 443
+          CidrIp: ::/0
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: project
+          Value: example-project
+
