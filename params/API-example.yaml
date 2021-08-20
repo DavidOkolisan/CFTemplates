@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'API Gateway example'
+Parameters:
+  Env:
+    Descriptions: Environment
+    Type: String
+  APIStageName:
+    Descriptions: Example API Gateway stage name
+    Type: String
+  CustomStackName:
+    Descriptions: Stack name containing lambda handler for requests from Api gateway
+    Type: String
+
+
+Resources:
+  # Permission to invoke lambda
+  ExampleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue
+        'Fn::Sub': '${CustomStackName}-${Env}-ExampleLambdaArn'
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  # API Gateway
+  ExampleAPIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Body:
+        openapi: '3.0.1'
+        info:
+          title: !Sub 'example-api-${Env}'
+          version: '2021-01-01T05:00:00Z'
+        x-amazon-apigateway-request-validators:
+          validateAll:
+            validateRequestParameters: true
+            validateRequestBody: true
+          paths:
+            /exampleEndpoint/{someParam}:
+              post:
+                parameters:
+                  - name: someParam
+                    in: path
+                    required: true
+                    schedma:
+                      type: string
+                requestBody:
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schema/ExampleObject'
+                  required: true
+                response:
+                  "200":
+                    description: '200 response'
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/Empty'
+                x-amazon-apigateway-request-validator: validateAll
+                x-amazon-apigateway-integration:
+                  type: 'aws-proxy'
+                  httpMethod: 'POST'
+                  uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:example-lambda-${Env}/invocations'
+                  responses:
+                    default:
+                      statusCode: 200
+                      passthroughBehaviour: 'when_no_match'
+                      contentHandling: 'CONVERT_TO_TEXT'
+          components:
+            schemas:
+              JsonEntry:
+                required:
+                  - 'jsonObject1'
+                  - 'jsonObject2'
+                type: object
+                properties:
+                  jsonObject1:
+                    $ref: '#/components/schema/JsonObject1'
+                  jsonObject2:
+                    $ref: '#/components/schema/JsonObject2'
+                  JsonObject1:
+                    type: object
+                    properties:
+                      field1:
+                        type: string
+                      field2:
+                        type: integer
+                      field3:
+                        type: boolean
+                  JsonObject2:
+                    required:
+                      - 'object2field1'
+                      - 'object2field2'
+                    type: object
+                    properties:
+                      object2field1:
+                        type: integer
+                      object2field2:
+                        type: integer
+                  Empty:
+                    title: 'EmptySchema'
+                    type: object
+                  ExampleObject:
+                    required:
+                      - 'exampleObject1'
+                      - 'exampleObject2'
+                      - 'exampleObject3'
+                    type: object
+                    properties:
+                      exampleObject1:
+                        $ref: '#/components/schemas/ExampleObject1'
+                      exampleObject2:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ExampleObject2' # won't be added just for example purposes, implementation is the similar as for other objects
+                  ExampleObject1:
+                    required:
+                      - exampleField1
+                    type: object
+                    properties:
+                      exampleField1:
+                        $ref: '#/components/schemas/SomeObject' # won't be added just for example purposes, implementation is the similar as for other objects
+          x-amazon-apigateway-documentation:
+            version: '1.0.0-SNAPSHOT'
+            createdDate: '2021-01-01T05:00:00Z'
+            documentationParts:
+              - location:
+                  type: 'METHOD'
+                  path: '/exampleEndpoint'
+                  method: 'POST'
+                properties:
+                  description: 'JSON Payload'
+              - location:
+                  type: 'MODEL'
+                  name: 'Empty'
+                properties:
+                  description: 'Empty Schema'
+              - location:
+                  type: 'RESOURCE'
+                properties:
+                  description: 'API for Example Project'
+              - location:
+                  type: 'RESOURCE'
+                  path: '/exampleEndpoint'
+                properties:
+                  description: 'Some payload object'
+              - location:
+                  type: 'RESPONSE'
+                  path: '/exampleEndpoint'
+                  method: 'OPTIONS'
+                  statusCode: 200
+                properties:
+                  description: '200 response'
+              - location:
+                  type: 'RESPONSE'
+                  path: '/exampleEndpoint'
+                  method: 'POST'
+                  statusCode: 200
+                properties:
+                  description: '200 response'
+      Description: Example Api Gateway
+      Name: !Sub 'example-api-${Env}'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: project
+          Value: example
+
+  # Stage used for API Gateway
+  ExampleAPIGatewayStage:
+    Type: AWS::ApiGateway::Stage
+      Properties:
+        StageName: !Ref APIStageName
+        Description: Example Stage
+        RestApiId: !Ref ExampleAPIGateway
+        DeploymentId: !Ref ExampleAPIDeployment
+        MethodSettings:
+          - ResourcePath: /exampleEndpoint/{someParam}
+            HttpMethod: POST
+            MetricEnabled: false
+            DataTraceEnabled: false
+            ThrottlingBurstLimit: 999
+        Tags:
+          - Key: project
+            Value: example
+
+  # Deployment for Example API Gateway
+  ExampleAPIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ExampleAPIGateway
+      Description: Deployment for Example Api Gateway
+
+  # Log group for example API
+  ExampleAPIGatewayLogGroup:
+    Type: AWS::Logs:LogGroup
+    Properties:
+      LogGroupName: !Join ['', ['Example-API-Gateway-Logs_', !Ref ExampleAPIGateway, '/', !Ref APIStageName]]
+
+
+
+
+
+

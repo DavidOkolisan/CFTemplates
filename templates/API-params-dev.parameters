@@ -1,0 +1,14 @@
+[
+    {
+        "ParameterKey": "Env",
+        "ParameterValue": "dev"
+    },
+    {
+        "ParameterKey": "APIStageName",
+        "ParameterValue": "ExampleApiStage"
+    }
+    {
+        "ParameterKey": "CustomStackName",
+        "ParameterValue": "ExampleLambdaStack"
+    }
+]
